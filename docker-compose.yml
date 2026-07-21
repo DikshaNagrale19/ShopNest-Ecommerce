@@ -1,0 +1,92 @@
+# ============================================================
+#  docker-compose.yml — ShopNest E-Commerce
+#  Starts 3 containers: app (PHP+Apache), db (MySQL), phpmyadmin
+# ============================================================
+
+services:
+
+  # ── 1. APP (PHP + Apache) ─────────────────────────────────
+  #  Builds from our Dockerfile in the current folder (.)
+  #  Runs the website at http://localhost:8080
+  #  Reads all env vars (DB, AWS, APP_*) from the .env file
+  #  Waits for the database to be healthy before starting
+  app:
+    build: .
+    container_name: shopnest_app
+    restart: unless-stopped        # auto-restart if it crashes
+    ports:
+      - "8080:80"                  # host:container — visit localhost:8080
+    env_file: .env                 # loads all vars from your .env file
+    environment:
+      DB_HOST: db                  # "db" = the service name below (auto DNS)
+      DB_PORT: 3306
+    volumes:
+      - uploads_data:/var/www/html/uploads   # keep uploaded images after restart
+      - logs_data:/var/www/html/logs         # keep log files after restart
+    depends_on:
+      db:
+        condition: service_healthy  # don't start until MySQL is ready
+
+    networks:
+      - shopnest_net
+
+  # ── 2. DATABASE (MySQL 8) ─────────────────────────────────
+  #  Runs a MySQL 8 server
+  #  Auto-imports ecommerce.sql on first startup (schema + seed)
+  #  Exposed on port 3307 (not 3306) to avoid conflict with XAMPP
+  db:
+    image: mysql:8.0
+    container_name: shopnest_db
+    restart: unless-stopped
+    env_file: .env                           # reads DB_NAME, DB_USER, DB_PASS
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: ${DB_NAME:-aws_ecommerce}
+      MYSQL_USER: ${DB_USER:-shopnest}
+      MYSQL_PASSWORD: ${DB_PASS:-shopnest_pass}
+    ports:
+      - "3307:3306"                          # host:container
+    volumes:
+      - db_data:/var/lib/mysql               # persist DB data across restarts
+      - ./database/ecommerce.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:                             # app waits until this passes
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - shopnest_net
+
+  # ── 3. PHPMYADMIN ─────────────────────────────────────────
+  #  Optional visual database manager
+  #  Visit http://localhost:8081 to browse/edit your database
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: shopnest_pma
+    restart: unless-stopped
+    ports:
+      - "8081:80"                  # visit localhost:8081
+    environment:
+      PMA_HOST: db                 # connect to the "db" service above
+      PMA_USER: root
+      PMA_PASSWORD: root_secret
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - shopnest_net
+
+# ── VOLUMES ───────────────────────────────────────────────
+#  Named volumes are managed by Docker and survive container restarts
+volumes:
+  db_data:        # MySQL database files
+  uploads_data:   # product images uploaded via admin
+  logs_data:      # PHP/app log files
+
+# ── NETWORKS ──────────────────────────────────────────────
+#  All 3 services share one private network so they can talk
+#  to each other by service name (e.g. app connects to "db")
+networks:
+  shopnest_net:
+    driver: bridge
