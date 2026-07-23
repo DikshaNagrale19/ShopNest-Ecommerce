@@ -1,0 +1,131 @@
+name: ShopNest CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  # JOB 1: Lint & Code Quality
+  # ──────────────────────────────────────────────────────────
+  lint-and-quality:
+    name: PHP Lint & Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup PHP 8.2 with all required extensions
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, gd, zip, mysqli, mbstring, openssl, json
+          coverage: none
+          tools: composer:v2, phpcs, phpstan
+
+      # 3. Validate composer.json is well-formed
+      # Note: --no-check-lock used because composer.lock is not yet committed
+      - name: Validate composer.json
+        run: composer validate --no-check-lock
+
+      # 4. Cache Composer packages to speed up future runs
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      # 5. Install PHP dependencies via Composer
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction --optimize-autoloader
+
+      # 6. PHP Syntax Lint — checks all .php files for syntax errors
+      # Note: We check the exit status of php -l directly.
+      #       Do NOT pipe to grep -v because grep returns exit 1 when
+      #       it finds no matches (i.e. all files pass), breaking the step.
+      - name: PHP Syntax Lint (php -l)
+        run: |
+          echo "Running PHP syntax check on all .php files..."
+          ERROR=0
+          while IFS= read -r -d '' file; do
+            php -l "$file" || ERROR=1
+          done < <(find . -name "*.php" \
+            ! -path "./vendor/*" \
+            ! -path "./uploads/*" \
+            ! -path "./logs/*" \
+            -print0)
+          if [ $ERROR -ne 0 ]; then
+            echo "❌ PHP syntax errors found!"
+            exit 1
+          fi
+          echo "✅ All PHP files passed syntax check."
+
+      # 7. PHP CodeSniffer — checks PSR-12 coding standards
+      - name: PHP CodeSniffer (PSR-12)
+        run: composer run phpcs
+        continue-on-error: true   # warn but don't fail the build on style issues
+
+      # 8. PHPStan — static analysis to catch bugs before runtime
+      - name: PHPStan Static Analysis
+        run: composer run phpstan
+        continue-on-error: true   # warn but don't fail on first run
+
+  # ──────────────────────────────────────────────────────────
+  # JOB 2: Package for Deployment (runs only on push to main)
+  # ──────────────────────────────────────────────────────────
+  package:
+    name: Package for Deployment
+    runs-on: ubuntu-latest
+    needs: lint-and-quality
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      # 1. Checkout the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup PHP 8.2
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, gd, zip, mysqli
+          coverage: none
+          tools: composer:v2
+
+      # 3. Install production-only Composer dependencies (no dev tools)
+      - name: Install production dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction --no-dev --optimize-autoloader
+
+      # 4. Create the deployment ZIP — excludes dev/runtime-only files
+      - name: Create deployment package (ZIP)
+        run: |
+          zip -r shopnest-ecommerce-${{ github.sha }}.zip . \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude "vendor/*/test*" \
+            --exclude "vendor/*/Test*" \
+            --exclude "vendor/*/doc*" \
+            --exclude "uploads/*" \
+            --exclude "logs/*" \
+            --exclude ".env" \
+            --exclude ".env.example" \
+            --exclude "*.md" \
+            --exclude "phpcs.xml" \
+            --exclude "phpstan.neon"
+          echo "✅ Package created: shopnest-ecommerce-${{ github.sha }}.zip"
+
+      # 5. Upload the ZIP as a downloadable GitHub Actions artifact
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopnest-deployment-${{ github.sha }}
+          path: shopnest-ecommerce-${{ github.sha }}.zip
+          retention-days: 14
