@@ -2,14 +2,14 @@
 
 > A full-featured, modern e-commerce web application built with PHP 8.2, MySQL 8, and Bootstrap 5.3.
 > Includes a complete customer-facing storefront, a powerful admin panel, Docker support, and a
-> GitHub Actions CI/CD pipeline using Maven.
+> GitHub Actions CI/CD pipeline using Composer and PHP-native tools.
 
 [![CI/CD Pipeline](https://github.com/Vaibhavmungal/ShopNest-Ecommerce/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Vaibhavmungal/ShopNest-Ecommerce/actions/workflows/ci-cd.yml)
-[![PHP](https://img.shields.io/badge/PHP-8.2-blue?logo=php)](https://www.php.net/)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0-orange?logo=mysql)](https://www.mysql.com/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docs.docker.com/compose/)
-[![Maven](https://img.shields.io/badge/Maven-3.x-C71A36?logo=apache-maven)](https://maven.apache.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PHP](https://img.shields.io/badge/PHP-8.2-777BB4?logo=php&logoColor=white)](https://www.php.net/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Composer](https://img.shields.io/badge/Composer-2.x-885630?logo=composer&logoColor=white)](https://getcomposer.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
 
 ---
 
@@ -25,8 +25,7 @@
 - [CI/CD Pipeline](#-cicd-pipeline)
   - [How the Pipeline Works](#how-the-pipeline-works)
   - [Setting Up the Workflow](#setting-up-the-workflow)
-  - [Maven POM & Build System](#maven-pom--build-system)
-  - [Running Maven Locally](#running-maven-locally)
+  - [Running Checks Locally](#running-checks-locally)
 - [Admin Access](#-admin-access)
 - [Key Pages](#-key-pages)
 - [Contributing](#-contributing)
@@ -64,23 +63,24 @@
 |-------|-----------|---------|
 | **Backend** | PHP (procedural + PDO) | **8.2** |
 | **Database** | MySQL | **8.0** |
-| **Web Server** | Apache (mod_rewrite enabled) | **2.4** |
+| **Web Server** | Apache (mod_rewrite) | **2.4** |
 | **Frontend** | HTML5 + Vanilla JS | — |
 | **CSS Framework** | Bootstrap | **5.3** |
 | **Icons** | Bootstrap Icons | **1.x** |
 | **Fonts** | Google Fonts (Outfit, Inter) | — |
+| **Dependency Manager** | Composer | **2.x** |
 | **Containerization** | Docker + Docker Compose | **v2+** |
-| **Build / CI Orchestrator** | Apache Maven | **3.x** |
-| **Java Runtime (for Maven)** | Eclipse Temurin JDK | **17 (LTS)** |
 | **CI/CD Platform** | GitHub Actions | — |
 
-### Maven Plugin Versions (pom.xml)
+### PHP Dev Tool Versions (composer.json)
 
-| Plugin | Version |
-|--------|---------|
-| `maven-clean-plugin` | **3.3.2** |
-| `exec-maven-plugin` | **3.1.1** |
-| `maven-assembly-plugin` | **3.6.0** |
+| Tool | Package | Version |
+|------|---------|---------|
+| Unit Testing | `phpunit/phpunit` | **^11.0** |
+| Code Style | `squizlabs/php_codesniffer` | **^3.9** |
+| Static Analysis | `phpstan/phpstan` | **^1.11** |
+
+> **Note:** These tools are `require-dev` only — they are **not** installed in production deployments.
 
 ---
 
@@ -118,8 +118,9 @@ aws-ecommerce/
 ├── tools/                   # CLI utilities (setup, hash generator)
 ├── uploads/                 # Uploaded product images (gitignored)
 ├── logs/                    # PHP error logs (gitignored)
-├── assembly.xml             # Maven assembly descriptor (packaging rules)
-├── pom.xml                  # Maven POM (lint + package CI/CD)
+├── composer.json            # PHP dependency manager config
+├── composer.lock            # Locked dependency versions (committed)
+├── phpstan.neon             # PHPStan static analysis config
 ├── Dockerfile               # Docker image definition (PHP 8.2 + Apache)
 ├── docker-compose.yml       # Multi-container setup (app + db + phpmyadmin)
 ├── .env                     # Environment config (NOT committed)
@@ -135,29 +136,36 @@ aws-ecommerce/
 
 **Prerequisites:**
 - [XAMPP](https://www.apachefriends.org/) with **PHP 8.2+** and **MySQL 8.0+**
+- [Composer](https://getcomposer.org/download/) installed globally
 
 **1. Clone the repository**
 ```bash
 git clone https://github.com/Vaibhavmungal/ShopNest-Ecommerce.git
+cd ShopNest-Ecommerce
 ```
 
-**2. Move to the XAMPP web root**
-```
-Place the cloned folder at: xampp/htdocs/aws-ecommerce
+**2. Install PHP dependencies**
+```bash
+composer install
 ```
 
-**3. Import the database schema**
+**3. Move to the XAMPP web root**
+```
+Place the folder at: xampp/htdocs/aws-ecommerce
+```
+
+**4. Import the database schema**
 ```bash
 mysql -u root -p < database/ecommerce.sql
 ```
 
-**4. Configure your environment**
+**5. Configure your environment**
 ```bash
 cp .env.example .env
+# Edit .env with your database credentials
 ```
-Edit `.env` with your local settings (see [Environment Variables](#-environment-variables) below).
 
-**5. Open in browser**
+**6. Open in browser**
 ```
 http://localhost/aws-ecommerce
 ```
@@ -178,7 +186,7 @@ cd ShopNest-Ecommerce
 **2. Configure your environment**
 ```bash
 cp .env.example .env
-# Edit .env as needed (DB credentials, APP_URL, etc.)
+# Edit .env as needed
 ```
 
 **3. Start all services**
@@ -188,9 +196,9 @@ docker compose up -d --build
 
 This starts **3 containers**:
 
-| Container | Image | Port |
-|-----------|-------|------|
-| `shopnest_app` | Custom (PHP 8.2 + Apache) | `http://localhost:8080` |
+| Container | Image | URL |
+|-----------|-------|-----|
+| `shopnest_app` | Custom PHP 8.2 + Apache | `http://localhost:8080` |
 | `shopnest_db` | `mysql:8.0` | `localhost:3307` |
 | `shopnest_pma` | `phpmyadmin:latest` | `http://localhost:8081` |
 
@@ -204,7 +212,7 @@ docker compose logs -f app
 docker compose down
 ```
 
-**6. Stop and remove all data (full reset)**
+**6. Stop and wipe all data (full reset)**
 ```bash
 docker compose down -v
 ```
@@ -227,13 +235,7 @@ DB_NAME=aws_ecommerce
 APP_NAME=ShopNest
 APP_URL=http://localhost/aws-ecommerce   # http://localhost:8080 for Docker
 APP_ENV=development        # development | production
-APP_DEBUG=true             # false in production
-
-# --- AWS (optional, for S3 image uploads) ---
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_DEFAULT_REGION=
-AWS_BUCKET=
+APP_DEBUG=true             # set to false in production
 ```
 
 > **⚠️ Never commit your `.env` file.** It is already listed in `.gitignore`.
@@ -242,136 +244,107 @@ AWS_BUCKET=
 
 ## ⚙️ CI/CD Pipeline
 
-This project uses **GitHub Actions** as the CI/CD platform and **Apache Maven** as the build orchestrator. The pipeline runs automatically on every `push` or `pull_request` to the `main` / `master` branch.
+This project uses **GitHub Actions** with **PHP-native tools** — no Java or Maven required.
+The pipeline runs automatically on every `push` or `pull_request` to `main` / `master`.
 
 ### How the Pipeline Works
 
 ```
-Push / PR → GitHub Actions Runner (Ubuntu Latest)
-               │
-               ├── 1. Checkout code        (actions/checkout@v4)
-               ├── 2. Setup PHP 8.2        (shivammathur/setup-php@v2)
-               │        extensions: pdo, pdo_mysql, gd, zip, mysqli
-               ├── 3. Setup JDK 17         (actions/setup-java@v4, Temurin)
-               │        (required to run Maven)
-               ├── 4. mvn clean package
-               │        ├── clean   → removes old target/ directory
-               │        ├── test    → runs PHP lint check (php -l) on all .php files
-               │        └── package → creates shopnest-ecommerce-1.0.0-SNAPSHOT.zip
-               │                      and shopnest-ecommerce-1.0.0-SNAPSHOT.tar.gz
-               └── 5. Upload artifacts     (actions/upload-artifact@v4)
-                        retention: 7 days
+Push / PR ──► GitHub Actions Runner (ubuntu-latest)
+                │
+                ├── JOB 1: lint-and-quality  (runs on every push & PR)
+                │    │
+                │    ├── 1. Checkout code
+                │    ├── 2. Setup PHP 8.2 + extensions
+                │    ├── 3. Validate composer.json
+                │    ├── 4. Cache vendor/ folder
+                │    ├── 5. composer install (dev dependencies)
+                │    ├── 6. php -l           → syntax check all .php files
+                │    ├── 7. phpcs            → PSR-12 code style check
+                │    └── 8. phpstan          → static analysis (level 5)
+                │
+                └── JOB 2: package  (runs only on push to main/master)
+                     │
+                     ├── 1. Checkout code
+                     ├── 2. Setup PHP 8.2
+                     ├── 3. composer install --no-dev (production only)
+                     ├── 4. Create deployment ZIP (excludes .git, uploads, .env…)
+                     └── 5. Upload ZIP as GitHub Actions artifact (14-day retention)
 ```
+
+---
 
 ### Setting Up the Workflow
 
-The workflow file is already included at `.github/workflows/ci-cd.yml`. Follow these steps to activate it:
+The workflow file is already at `.github/workflows/ci-cd.yml`. Follow these steps:
 
-**Step 1 — Push to GitHub**
-
-Make sure your repository is on GitHub and the workflow file is committed:
+**Step 1 — Push your code to GitHub**
 ```bash
-git add .github/workflows/ci-cd.yml pom.xml assembly.xml
-git commit -m "chore: add CI/CD pipeline"
+git add .
+git commit -m "feat: add CI/CD pipeline and Composer config"
 git push origin main
 ```
 
-**Step 2 — Verify the Action runs**
-
-1. Go to your repository on GitHub.
+**Step 2 — Verify the pipeline runs**
+1. Open your repository on GitHub.
 2. Click the **Actions** tab.
-3. You should see **"ShopNest CI/CD Pipeline"** listed.
-4. Click it to see the run details and logs for each step.
+3. You will see **"ShopNest CI/CD Pipeline"** with two jobs.
+4. Click any run to see step-by-step logs.
 
-**Step 3 — Download build artifacts**
+**Step 3 — Download the deployment package**
+1. Open a successful workflow run.
+2. Scroll to **Artifacts** at the bottom.
+3. Download `shopnest-deployment-<sha>` — this is your production-ready `.zip`.
 
-After a successful run:
-1. Open the workflow run page on GitHub Actions.
-2. Scroll to the **Artifacts** section at the bottom.
-3. Download `shopnest-deployment-packages` — it contains your `.zip` and `.tar.gz` deployment bundles.
+**Step 4 — (Optional) Add secrets for auto-deployment**
 
-**Step 4 — (Optional) Add Secrets for deployment**
-
-If you want to auto-deploy after a successful build, add secrets to your repository:
-
-1. Go to **Settings → Secrets and variables → Actions → New repository secret**.
-2. Add secrets such as:
+Go to **Settings → Secrets and variables → Actions → New repository secret** and add:
 
 | Secret Name | Description |
 |-------------|-------------|
-| `SSH_HOST` | Your server IP / hostname |
+| `SSH_HOST` | Your server IP or hostname |
 | `SSH_USER` | SSH username |
-| `SSH_PRIVATE_KEY` | Private key for SSH access |
-| `AWS_ACCESS_KEY_ID` | AWS key (if using S3) |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret (if using S3) |
+| `SSH_PRIVATE_KEY` | Your private key for SSH access |
+| `AWS_ACCESS_KEY_ID` | AWS key (if using S3 for uploads) |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret |
 
-Then extend `.github/workflows/ci-cd.yml` with a `deploy` job that runs after the `build-and-package` job passes.
-
----
-
-### Maven POM & Build System
-
-The [`pom.xml`](pom.xml) file uses Maven purely as a **CI/CD orchestrator** — it does not manage PHP dependencies (PHP doesn't use Maven for that). Here is what each plugin does:
-
-| Maven Plugin | Phase | Purpose |
-|---|---|---|
-| `maven-clean-plugin` **3.3.2** | `clean` | Deletes the `target/` directory before every build |
-| `exec-maven-plugin` **3.1.1** | `test` | Runs `php -l` on every `.php` file to catch syntax errors |
-| `maven-assembly-plugin` **3.6.0** | `package` | Bundles app files into `.zip` & `.tar.gz` deployment archives |
-
-The [`assembly.xml`](assembly.xml) descriptor controls which files go into the archive — it **excludes**:
-`.git/`, `target/`, `uploads/`, `logs/`, `.env`, `.env.example`, `pom.xml`, `assembly.xml`
-
-**SonarQube (Static Analysis) — Optional**
-
-The `pom.xml` includes SonarQube properties pre-configured for PHP. To run a SonarQube scan:
-```bash
-mvn sonar:sonar \
-  -Dsonar.host.url=http://your-sonarqube-server \
-  -Dsonar.login=your-token
-```
+Then extend the `package` job in `ci-cd.yml` with an `scp` or `rsync` step using these secrets.
 
 ---
 
-### Running Maven Locally
+### Running Checks Locally
 
 **Prerequisites:**
-- [Apache Maven 3.x](https://maven.apache.org/download.cgi) installed
-- Java 17 (JDK) installed — [Eclipse Temurin](https://adoptium.net/)
-- PHP 8.2 available in your `PATH`
+- PHP 8.2 in your `PATH`
+- [Composer](https://getcomposer.org/download/) installed
 
-**Verify your setup:**
+**Install all dependencies:**
 ```bash
-mvn --version   # Should show Apache Maven 3.x
-java --version  # Should show openjdk 17
-php --version   # Should show PHP 8.2.x
+composer install
 ```
 
-**Common Maven commands:**
-
+**Run individual checks:**
 ```bash
-# Clean the target/ directory
-mvn clean
+# 1. PHP Syntax check — finds parse errors in all .php files
+composer lint
 
-# Run PHP syntax lint check only
-mvn test
+# 2. PSR-12 Code style check
+composer phpcs
 
-# Full build: clean + lint + package into zip/tar.gz
-mvn clean package
+# 3. Static analysis (catches bugs without running code)
+composer phpstan
 
-# Skip linting and just package
-mvn clean package -DskipTests
-
-# View what will be packaged (dry run)
-mvn clean package -Dassembly.dryRun=true
+# 4. Run all checks at once
+composer check
 ```
 
-After `mvn clean package`, your deployment artifacts appear in:
-```
-target/
-├── shopnest-ecommerce-1.0.0-SNAPSHOT.zip
-└── shopnest-ecommerce-1.0.0-SNAPSHOT.tar.gz
-```
+**What each tool does:**
+
+| Tool | Command | What it catches |
+|------|---------|----------------|
+| `php -l` | `composer lint` | PHP parse/syntax errors |
+| PHP_CodeSniffer | `composer phpcs` | Code style violations (PSR-12) |
+| PHPStan | `composer phpstan` | Type errors, undefined variables, dead code |
 
 ---
 
@@ -381,7 +354,7 @@ Default admin credentials (change after first login):
 
 ```
 URL:      http://localhost/aws-ecommerce/admin/login.php
-          http://localhost:8080/admin/login.php   (Docker)
+          http://localhost:8080/admin/login.php  (Docker)
 Email:    admin@shopnest.com
 Password: (set in DB during setup)
 ```
@@ -413,13 +386,13 @@ Password: (set in DB during setup)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-The CI/CD pipeline will automatically lint and validate your code when you open a PR.
+> The CI/CD pipeline will automatically run syntax checks, code style checks, and static analysis on your PR.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License**.
 
 ---
 
@@ -432,5 +405,5 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 ---
 
 <div align="center">
-  Made with ❤️ using PHP, Bootstrap &amp; Docker
+  Made with ❤️ using PHP &amp; Bootstrap
 </div>
