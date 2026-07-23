@@ -29,8 +29,9 @@ jobs:
           tools: composer:v2, phpcs, phpstan
 
       # 3. Validate composer.json is well-formed
+      # Note: --no-check-lock used because composer.lock is not yet committed
       - name: Validate composer.json
-        run: composer validate --strict
+        run: composer validate --no-check-lock
 
       # 4. Cache Composer packages to speed up future runs
       - name: Cache Composer dependencies
@@ -46,14 +47,24 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction --optimize-autoloader
 
       # 6. PHP Syntax Lint — checks all .php files for syntax errors
+      # Note: We check the exit status of php -l directly.
+      #       Do NOT pipe to grep -v because grep returns exit 1 when
+      #       it finds no matches (i.e. all files pass), breaking the step.
       - name: PHP Syntax Lint (php -l)
         run: |
           echo "Running PHP syntax check on all .php files..."
-          find . -name "*.php" \
+          ERROR=0
+          while IFS= read -r -d '' file; do
+            php -l "$file" || ERROR=1
+          done < <(find . -name "*.php" \
             ! -path "./vendor/*" \
             ! -path "./uploads/*" \
             ! -path "./logs/*" \
-            -exec php -l {} \; | grep -v "No syntax errors"
+            -print0)
+          if [ $ERROR -ne 0 ]; then
+            echo "❌ PHP syntax errors found!"
+            exit 1
+          fi
           echo "✅ All PHP files passed syntax check."
 
       # 7. PHP CodeSniffer — checks PSR-12 coding standards

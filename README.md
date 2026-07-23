@@ -15,12 +15,14 @@
 
 ## 📋 Table of Contents
 
-- [Prerequisites & Service Downloads](#-prerequisites--service-downloads)
+- [Prerequisites & Service Installation (Linux)](#-prerequisites--service-installation-linux)
   - [Git](#1--git)
-  - [PHP 8.2](#2--php-82)
+  - [PHP 8.2](#2--php-82--required-extensions)
   - [MySQL 8.0](#3--mysql-80)
-  - [Composer 2.x](#4--composer-2x)
-  - [Docker & Docker Compose](#5--docker--docker-compose)
+  - [Apache 2.4](#4--apache-24)
+  - [Composer 2.x](#5--composer-2x)
+  - [Docker & Docker Compose](#6--docker--docker-compose)
+  - [Jenkins](#7--jenkins-self-hosted-cicd)
 - [Features](#-features)
 - [Tech Stack & Versions](#️-tech-stack--versions)
 - [Project Structure](#-project-structure)
@@ -40,244 +42,204 @@
 
 ---
 
-## 📥 Prerequisites & Service Downloads
+## 📥 Prerequisites & Service Installation (Linux)
 
-Install the following tools before running the project. Commands are provided for **Windows**, **macOS**, and **Linux**.
+> All CI/CD platforms — **GitHub Actions**, **Jenkins**, **GitLab CI**, **CircleCI**, **Docker**
+> — run on **Linux (Ubuntu/Debian)**. Use these commands to set up your CI/CD server or agent.
 
 ---
 
 ### 1. 🔧 Git
 
-> Required to clone the repository.
-
-| OS | Command |
-|----|---------|
-| **Windows** | [Download Git for Windows](https://git-scm.com/download/win) — run the installer |
-| **macOS** | `brew install git` |
-| **Linux (Debian/Ubuntu)** | `sudo apt update && sudo apt install -y git` |
-| **Linux (RHEL/CentOS)** | `sudo yum install -y git` |
-
-**Verify:**
 ```bash
+sudo apt update
+sudo apt install -y git
+
+# Verify
 git --version
-# Expected: git version 2.x.x
+# git version 2.x.x
 ```
 
 ---
 
-### 2. 🐘 PHP 8.2
+### 2. 🐘 PHP 8.2 + Required Extensions
 
-> Required to run the application and Composer tools locally.
-
-**Windows — via XAMPP (easiest, bundles PHP + Apache + MySQL):**
-```
-Download XAMPP 8.2: https://www.apachefriends.org/download.html
-Run the installer and ensure PHP 8.2 is selected.
-```
-
-**Windows — standalone PHP:**
-```powershell
-# Using winget
-winget install PHP.PHP.8.2
-
-# Using Chocolatey
-choco install php --version=8.2
-```
-
-**macOS:**
-```bash
-# Using Homebrew
-brew install php@8.2
-echo 'export PATH="/usr/local/opt/php@8.2/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-**Linux (Debian/Ubuntu):**
 ```bash
 sudo apt update
 sudo apt install -y software-properties-common
 sudo add-apt-repository ppa:ondrej/php -y
 sudo apt update
-sudo apt install -y php8.2 php8.2-cli php8.2-mysql php8.2-gd php8.2-zip \
-     php8.2-mbstring php8.2-xml php8.2-curl php8.2-opcache
-```
 
-**Linux (RHEL/CentOS):**
-```bash
-sudo dnf install -y https://rpms.remirepo.net/enterprise/remi-release-9.rpm
-sudo dnf module enable php:remi-8.2 -y
-sudo dnf install -y php php-pdo php-mysqlnd php-gd php-zip php-mbstring
-```
+sudo apt install -y \
+  php8.2 \
+  php8.2-cli \
+  php8.2-mysql \
+  php8.2-gd \
+  php8.2-zip \
+  php8.2-mbstring \
+  php8.2-xml \
+  php8.2-curl \
+  php8.2-opcache \
+  php8.2-mysqli
 
-**Verify:**
-```bash
+# Verify
 php --version
-# Expected: PHP 8.2.x
+# PHP 8.2.x
 ```
 
 ---
 
 ### 3. 🐬 MySQL 8.0
 
-> Required for the database. Skip if using XAMPP or Docker (both bundle MySQL).
-
-**Windows:**
-```
-Download MySQL Installer: https://dev.mysql.com/downloads/installer/
-Choose "MySQL Server 8.0" during setup.
-```
-
-```powershell
-# Using Chocolatey
-choco install mysql --version=8.0
-
-# Using winget
-winget install Oracle.MySQL
-```
-
-**macOS:**
-```bash
-brew install mysql@8.0
-brew services start mysql@8.0
-```
-
-**Linux (Debian/Ubuntu):**
 ```bash
 sudo apt update
 sudo apt install -y mysql-server
+
 sudo systemctl start mysql
 sudo systemctl enable mysql
-# Secure the installation
+
+# Secure the installation (set root password, remove test DBs)
 sudo mysql_secure_installation
-```
 
-**Linux (RHEL/CentOS):**
-```bash
-sudo dnf install -y mysql-server
-sudo systemctl start mysqld
-sudo systemctl enable mysqld
-```
+# Import the project schema
+mysql -u root -p < database/ecommerce.sql
 
-**Verify:**
-```bash
+# Verify
 mysql --version
-# Expected: mysql  Ver 8.0.x
+# mysql  Ver 8.0.x
 ```
 
 ---
 
-### 4. 📦 Composer 2.x
+### 4. 🌐 Apache 2.4
 
-> PHP's dependency manager — required to install `phpunit`, `phpcs`, and `phpstan`.
-
-**Windows:**
-```
-Download Composer-Setup.exe: https://getcomposer.org/Composer-Setup.exe
-Run the installer — it auto-detects PHP and adds Composer to PATH.
-```
-
-```powershell
-# Using Chocolatey
-choco install composer
-
-# Using winget
-winget install Composer.Composer
-```
-
-**macOS:**
 ```bash
-brew install composer
+sudo apt update
+sudo apt install -y apache2
+
+# Enable URL rewriting (needed for .htaccess)
+sudo a2enmod rewrite
+sudo systemctl restart apache2
+sudo systemctl enable apache2
+
+# Set correct permissions for web root
+sudo chown -R www-data:www-data /var/www/html
+sudo chmod -R 755 /var/www/html
+
+# Verify
+apache2 -v
+# Server version: Apache/2.4.x
 ```
 
-**Linux (all distros — universal installer):**
+---
+
+### 5. 📦 Composer 2.x
+
 ```bash
+# Download and install Composer globally
 php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
 php composer-setup.php
 php -r "unlink('composer-setup.php');"
 sudo mv composer.phar /usr/local/bin/composer
-```
 
-**Verify:**
-```bash
+# Install project PHP dependencies
+composer install
+
+# Verify
 composer --version
-# Expected: Composer version 2.x.x
+# Composer version 2.x.x
 ```
 
 ---
 
-### 5. 🐳 Docker & Docker Compose
+### 6. 🐳 Docker & Docker Compose
 
-> Required only for **Option B** (Docker setup). Skip if using XAMPP locally.
-
-**Windows & macOS — Docker Desktop (includes Compose):**
-```
-Download Docker Desktop: https://www.docker.com/products/docker-desktop/
-Run the installer and start Docker Desktop.
-```
-
-```powershell
-# Windows — using winget
-winget install Docker.DockerDesktop
-
-# Windows — using Chocolatey
-choco install docker-desktop
-```
+> Required to run the containerised stack (`app` + `db` + `phpmyadmin`).
 
 ```bash
-# macOS — using Homebrew
-brew install --cask docker
-```
-
-**Linux (Debian/Ubuntu):**
-```bash
-# Install Docker Engine
+# Install dependencies
 sudo apt update
 sudo apt install -y ca-certificates curl gnupg
+
+# Add Docker's official GPG key
 sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Add Docker repository
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine + Compose plugin
 sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo apt install -y docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
 
 # Allow running Docker without sudo
 sudo usermod -aG docker $USER
 newgrp docker
-```
 
-**Linux (RHEL/CentOS):**
-```bash
-sudo dnf install -y yum-utils
-sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+# Start and enable Docker on boot
 sudo systemctl start docker
 sudo systemctl enable docker
-sudo usermod -aG docker $USER
-```
 
-**Verify:**
-```bash
-docker --version
-# Expected: Docker version 24.x.x or later
-
-docker compose version
-# Expected: Docker Compose version v2.x.x
+# Verify
+docker --version          # Docker version 24.x.x
+docker compose version    # Docker Compose version v2.x.x
 ```
 
 ---
 
-### 6. ✅ Verify All Services at Once
+### 7. 🏗️ Jenkins (Self-hosted CI/CD)
 
-Run this to check every required tool in one go:
+> Install Jenkins on your Linux server to run pipelines locally or on-premise.
 
 ```bash
-git --version        # git version 2.x.x
-php --version        # PHP 8.2.x
-mysql --version      # mysql  Ver 8.0.x
-composer --version   # Composer version 2.x.x
-docker --version     # Docker version 24.x.x
-docker compose version  # Docker Compose version v2.x.x
+# Install Java (Jenkins requires JDK 17+)
+sudo apt update
+sudo apt install -y openjdk-17-jdk
+
+java -version
+# openjdk version "17.x.x"
+
+# Add Jenkins repository
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key \
+  | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian-stable binary/" \
+  | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+# Install Jenkins
+sudo apt update
+sudo apt install -y jenkins
+
+# Start and enable Jenkins
+sudo systemctl start jenkins
+sudo systemctl enable jenkins
+
+# Get the initial admin password
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+
+# Access Jenkins at:  http://<your-server-ip>:8080
+```
+
+---
+
+### 8. ✅ Verify All Services
+
+Run this on your CI/CD server to confirm everything is installed:
+
+```bash
+git --version            # git version 2.x.x
+php --version            # PHP 8.2.x
+mysql --version          # mysql  Ver 8.0.x
+apache2 -v               # Server version: Apache/2.4.x
+composer --version       # Composer version 2.x.x
+docker --version         # Docker version 24.x.x
+docker compose version   # Docker Compose version v2.x.x
+java -version            # openjdk version "17.x.x"  (for Jenkins)
 ```
 
 ---
